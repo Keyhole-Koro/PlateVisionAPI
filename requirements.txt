@@ -1,0 +1,6 @@
+pytesseract
+ultralytics
+numpy
+opencv-python-headless
+pillow
+matplotlib
