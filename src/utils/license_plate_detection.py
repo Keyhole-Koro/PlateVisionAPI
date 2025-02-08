@@ -1,9 +1,8 @@
 import cv2
 
-def detect_license_plate(model_LicensePlateDet, image_path, debug=False):
+def detect_license_plate(model_LicensePlateDet, image, debug=False):
     """ Detects license plates in an image using YOLO and applies padding."""
-    image = cv2.imread(image_path)
-    results = model_LicensePlateDet.predict(image_path)
+    results = model_LicensePlateDet.predict(image)
     detections = []
 
     if results[0].boxes:

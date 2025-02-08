@@ -4,3 +4,7 @@ numpy
 opencv-python-headless
 pillow
 matplotlib
+
+fastapi
+uvicorn
+python-multipart
