@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Page</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to the Upload Page</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="snapInput" name="image" accept="image/*" capture="camera" style="display: none;">
+            <input type="file" id="chooseInput" name="image" accept="image/*" style="display: none;">
+            <button type="button" id="snapButton" class="button">Snap Photo</button>
+            <button type="button" id="chooseButton" class="button">Choose Photo</button>
+            <button type="submit" class="button">Upload Photo</button>
+        </form>
+        <img id="preview" src="" alt="Image Preview" style="display: none; margin-top: 20px; max-width: 100%;">
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+    <script>
+        document.getElementById('snapButton').addEventListener('click', () => {
+            document.getElementById('snapInput').click();
+        });
+
+        document.getElementById('chooseButton').addEventListener('click', () => {
+            document.getElementById('chooseInput').click();
+        });
+
+        document.getElementById('snapInput').addEventListener('change', (event) => {
+            displayImage(event.target.files[0]);
+        });
+
+        document.getElementById('chooseInput').addEventListener('change', (event) => {
+            displayImage(event.target.files[0]);
+        });
+
+        function displayImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('preview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const result = await response.json();
+            const resultDiv = document.getElementById('result');
+            if (response.ok) {
+                resultDiv.innerHTML = `<p>${result.message}</p><pre>${JSON.stringify(result.result, null, 2)}</pre>`;
+            } else {
+                resultDiv.innerHTML = `<p>Error: ${result.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>

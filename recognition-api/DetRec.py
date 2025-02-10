@@ -14,7 +14,7 @@ from utils.compress import compress_image
 from utils.memoryUsage import measure_time, monitor_memory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, "..", "model")
+MODEL_DIR = os.path.join(BASE_DIR, "model")
 YOLO_DIR = os.path.join(MODEL_DIR, "yolo")
 TESSERACT_DIR = os.path.join(MODEL_DIR, "tesseract")
 
@@ -54,8 +54,12 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
 
 async def full_pipeline(image, measure=False):
     """ Full pipeline: detect, crop, transform, segment, and recognize text. """
-    memory_before = monitor_memory()
-    print(f"Memory before execution: {memory_before} MB")
+    
+    if measure:
+        memory_before = monitor_memory()
+        print(f"Memory before execution: {memory_before} MB")
+    else:
+        memory_before = 0  # No memory measurement if measure is False
     
     model_splitting_sections, model_LicensePlateDet = await load_models()
     
@@ -63,11 +67,13 @@ async def full_pipeline(image, measure=False):
     
     result = await detect_and_recognize(model_LicensePlateDet, model_splitting_sections, compressed_image, measure)
     
-    memory_after = monitor_memory()
-    memory_used = memory_after - memory_before
-    
-    print(f"Memory after execution: {memory_after} MB")
-    print(f"Memory used: {memory_used} MB")
+    if measure:
+        memory_after = monitor_memory()
+        memory_used = memory_after - memory_before
+        print(f"Memory after execution: {memory_after} MB")
+        print(f"Memory used: {memory_used} MB")
+    else:
+        memory_used = 0  # No memory measurement if measure is False
     
     return result
 
