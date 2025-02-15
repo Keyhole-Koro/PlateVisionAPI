@@ -59,6 +59,10 @@
             const resultDiv = document.getElementById('result');
             if (response.ok) {
                 resultDiv.innerHTML = `<p>${result.message}</p><pre>${JSON.stringify(result.result, null, 2)}</pre>`;
+                const processedImage = document.createElement('img');
+                processedImage.src = `data:image/jpeg;base64,${result.image}`;
+                processedImage.style.maxWidth = '100%';
+                resultDiv.appendChild(processedImage);
             } else {
                 resultDiv.innerHTML = `<p>Error: ${result.message}</p>`;
             }

@@ -37,7 +37,7 @@ app.post('/upload', upload.single('image'), async (req, res) => {
       },
     });
 
-    res.send({ message: 'Image uploaded and processed successfully', result: response.data });
+    res.send({ message: 'Image uploaded and processed successfully', result: response.data.result, image: response.data.image });
   } catch (error) {
     console.error(`Error processing image: ${error.message}`);
     res.status(500).send({ message: 'Failed to process image' });

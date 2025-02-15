@@ -2,7 +2,7 @@ import cv2
 import pytesseract
 import asyncio
 from functools import partial
-
+from utils.dePatterns import dePatterns, visualize_clusters
 
 def convert_to_binary(image, threshold=128):
     """Converts an image to binary (black and white) based on a threshold."""
@@ -18,7 +18,7 @@ label = {
 }
 
 
-async def perform_ocr(tessdata, image, sections, binary=False, threshold=128):
+async def perform_ocr(tessdata, image, sections, de_pattern=False, binary=False, threshold=128):
     """Performs OCR asynchronously on detected sections."""
     loop = asyncio.get_event_loop()
     results = {}
@@ -48,6 +48,9 @@ async def perform_ocr(tessdata, image, sections, binary=False, threshold=128):
         if x1 >= x2 or y1 >= y2:
             continue
         cropped = image[y1:y2, x1:x2]
+        if de_pattern:
+            cropped = dePatterns(cropped)
+
         tasks.append((ocr_task(cropped, cls_number), cls_number))  # Store cls_number with OCR task
 
     # Gather OCR results
@@ -60,6 +63,7 @@ async def perform_ocr(tessdata, image, sections, binary=False, threshold=128):
             results[list(label.keys())[list(label.values()).index(cls_number)]] = cleaned_text
 
     return results
+
 
 
 # Example Usage:

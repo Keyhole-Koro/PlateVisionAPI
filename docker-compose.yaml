@@ -2,6 +2,8 @@ version: '3.8'
 
 services:
   recognition-api:
+    container_name: recognition-api
+
     build:
       context: ./recognition-api
       dockerfile: Dockerfile
@@ -16,11 +18,13 @@ services:
       - app-network
       
   upload-page:
+    container_name: upload-page
+
     build:
       context: ./upload-page
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./upload-page:/app
     command: sh -c "npm install && node server.js"

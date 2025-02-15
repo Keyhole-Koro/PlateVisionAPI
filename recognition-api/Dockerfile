@@ -22,7 +22,7 @@ COPY requirements.txt requirements.txt
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
-    CUDA=0 pip install -r requirements.txt && \
+    pip install -r requirements.txt && \
     pip install ultralytics --no-deps
 
 # Copy your application code into the container
