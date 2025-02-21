@@ -34,13 +34,22 @@ async def load_models():
     classification_scaler = joblib.load("model/LicensePlateClassification/scaler.pkl")
     return model_splitting_sections, model_LicensePlateDet, classification_model, classification_scaler
 
-async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, processed_section, measure=False):
+async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, flags, measure=False):
     """ Detect license plates, segment sections, and perform OCR. """
     async def process():
         results = []
-        detections, image_lp = detect_license_plate(model_LicensePlateDet, image)
+
+        if not flags["recognition_only"]:
+            detections, image_lp = detect_license_plate(model_LicensePlateDet, image)
+        else:
+            height = image.shape[0]
+            width = image.shape[1]
+            detections = [(0, 0, width, height)]
+            image_lp = image
+
         for x1, y1, x2, y2 in detections:
-            cv2.rectangle(image_lp, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            if flags["annotated_image"]:
+                cv2.rectangle(image_lp, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
             cropped = image_lp[y1:y2, x1:x2]
             sections, LP_cls = detect_sections(model_splitting_sections, cropped)
@@ -50,14 +59,14 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
                 # Load the trained model
             section_part_cropped = cropped[min_y+10:max_y-10, min_x+10:max_x-10]
             lp_cls = inference_class(section_part_cropped,
-                                     model_path=classification_model,
-                                     scaler_path=classification_scaler
+                                     model=classification_model,
+                                     scaler=classification_scaler
                                      )
             
             result = await perform_ocr(TESSERACT_DIR,
                                        cropped,
                                        sections,
-                                       processed_section,
+                                       flags,
                                        de_pattern=lp_cls == "designed" or lp_cls == "private"
                                        )
             

@@ -42,10 +42,12 @@ async def process_image(
     image = ImageOps.exif_transpose(image)
     image = np.array(image)
 
-    processed_section = {
+    flags = {
+        "recognition_only": recognition_only,
+        "annotated_image": annotated_image,
         "hiragana": hiragana,
         "classification": classification,
-        "number:": number,
+        "number": number,
         "region": False
     }
 
@@ -56,13 +58,13 @@ async def process_image(
         classification_model,
         classification_scaler, 
         image,
-        processed_section,
+        flags,
         measure,
     )
 
     response = {"result": result}
 
-    if annotated_image and not recognition_only:
+    if annotated_image:
         # Convert and encode image only if requested
         processed_image_rgb = cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB)
         processed_image_location = os.path.join(UPLOAD_FOLDER, f"processed_{file.filename}")
