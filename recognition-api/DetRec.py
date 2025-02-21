@@ -3,9 +3,7 @@ import cv2
 import os
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
-import pytesseract
-import psutil
-import time
+import joblib
 
 from utils.license_plate_detection import detect_license_plate
 from utils.section_detection import detect_sections, range_xy_sections
@@ -32,9 +30,11 @@ async def load_models():
     loop = asyncio.get_event_loop()
     model_splitting_sections = await loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "section_detection/sections.pt"))
     model_LicensePlateDet = await loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "license_plate_detection/epoch30.pt"))
-    return model_splitting_sections, model_LicensePlateDet
+    classification_model = joblib.load("model/LicensePlateClassification/knn_model.pkl")
+    classification_scaler = joblib.load("model/LicensePlateClassification/scaler.pkl")
+    return model_splitting_sections, model_LicensePlateDet, classification_model, classification_scaler
 
-async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, image, measure=False):
+async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, processed_section, measure=False):
     """ Detect license plates, segment sections, and perform OCR. """
     async def process():
         results = []
@@ -47,19 +47,22 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
 
             # for license plate class prediction
             min_x, min_y, max_x, max_y = range_xy_sections(sections)
+                # Load the trained model
             section_part_cropped = cropped[min_y+10:max_y-10, min_x+10:max_x-10]
-            cv2.imwrite("section_part_cropped.jpg", section_part_cropped)
             lp_cls = inference_class(section_part_cropped,
-                                     model_path="model/LicensePlateClassification/knn_model.pkl",
-                                     scaler_path="model/LicensePlateClassification/scaler.pkl"
+                                     model_path=classification_model,
+                                     scaler_path=classification_scaler
                                      )
-            results.append({"class": lp_cls})
-
+            
             result = await perform_ocr(TESSERACT_DIR,
                                        cropped,
                                        sections,
+                                       processed_section,
                                        de_pattern=lp_cls == "designed" or lp_cls == "private"
                                        )
+            
+            result["class"] = lp_cls
+
             results.append(result)
 
             for (cls_number, s_x1, s_y1, s_x2, s_y2) in sections:

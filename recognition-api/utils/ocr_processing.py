@@ -17,8 +17,7 @@ label = {
     "number": 3,
 }
 
-
-async def perform_ocr(tessdata, image, sections, de_pattern=False, binary=False, threshold=128):
+async def perform_ocr(tessdata, image, sections, processed_section, de_pattern=False, binary=False, threshold=128):
     """Performs OCR asynchronously on detected sections."""
     loop = asyncio.get_event_loop()
     results = {}
@@ -27,14 +26,20 @@ async def perform_ocr(tessdata, image, sections, de_pattern=False, binary=False,
         if cropped is None or cropped.size == 0:
             return ""
 
-        if cls_number == label["classification"]:
-            model = "digits1"
-        elif cls_number == label["number"]:
-            model = "tlp"
-        elif cls_number == label["hiragana"]:
-            model = "hiragana"
-        elif cls_number == label["region"]:
-            model = "region"
+        MODEL_MAP = {
+            "classification": "digits1",
+            "number": "tlp", 
+            "hiragana": "hiragana",
+            "region": "region"
+        }
+
+        # Check if section should be processed
+        for key in label:
+            if cls_number == label[key] and not processed_section[key]:
+                return ""
+
+        # Get model name from mapping
+        model = MODEL_MAP[next(key for key, val in label.items() if val == cls_number)]
 
         # Configure Tesseract OCR settings
         config = f'--oem 1 --psm 6 -l {model}'

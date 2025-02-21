@@ -5,6 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Page</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Add styles for the scrollable container */
+        #result {
+            margin-top: 20px;
+            max-height: 400px; /* Adjust the height as needed */
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        /* Style the buttons */
+        .button {
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Style the image preview */
+        #preview {
+            display: none;
+            margin-top: 20px;
+            max-width: 100%;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -16,8 +47,9 @@
             <button type="button" id="chooseButton" class="button">Choose Photo</button>
             <button type="submit" class="button">Upload Photo</button>
         </form>
-        <img id="preview" src="" alt="Image Preview" style="display: none; margin-top: 20px; max-width: 100%;">
-        <div id="result" style="margin-top: 20px;"></div>
+        <div id="result">
+            <img id="preview" src="" alt="Image Preview">
+        </div> <!-- Scrollable container for results -->
     </div>
     <script>
         document.getElementById('snapButton').addEventListener('click', () => {
@@ -42,8 +74,53 @@
                 const preview = document.getElementById('preview');
                 preview.src = e.target.result;
                 preview.style.display = 'block';
+
             };
             reader.readAsDataURL(file);
+        }
+
+        function convertToJSONObject(input) {
+            try {
+                if (typeof input === 'string') {
+                    return JSON.parse(input.replace(/'/g, '"'));
+                } else if (typeof input === 'object') {
+                    return input;
+                } else {
+                    throw new Error("Invalid input type");
+                }
+            } catch (error) {
+                console.error("Invalid JSON string:", error);
+                return null;
+            }
+        }
+
+        function generateTableFromJSON(jsonObject) {
+            if (!jsonObject) return;
+
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+
+            const headerRow = document.createElement('tr');
+            Object.keys(jsonObject).forEach(key => {
+                const th = document.createElement('th');
+                th.textContent = key;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            const bodyRow = document.createElement('tr');
+            Object.values(jsonObject).forEach(value => {
+                const td = document.createElement('td');
+                td.textContent = value;
+                bodyRow.appendChild(td);
+            });
+            tbody.appendChild(bodyRow);
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+
+            return table.outerHTML;
         }
 
         document.getElementById('uploadForm').addEventListener('submit', async (event) => {
@@ -58,13 +135,20 @@
             const result = await response.json();
             const resultDiv = document.getElementById('result');
             if (response.ok) {
-                resultDiv.innerHTML = `<p>${result.message}</p><pre>${JSON.stringify(result.result, null, 2)}</pre>`;
+                resultDiv.innerHTML = `execution time ${result.execution_time}`;
+
+                result.result.forEach(a_result => {
+                    jsonResult = convertToJSONObject(a_result);
+
+                    resultDiv.innerHTML += generateTableFromJSON(jsonResult);                    
+                });
+
                 const processedImage = document.createElement('img');
                 processedImage.src = `data:image/jpeg;base64,${result.image}`;
                 processedImage.style.maxWidth = '100%';
                 resultDiv.appendChild(processedImage);
             } else {
-                resultDiv.innerHTML = `<p>Error: ${result.message}</p>`;
+                resultDiv.innerHTML += `<p>Error: ${result.message}</p>`;
             }
         });
     </script>
