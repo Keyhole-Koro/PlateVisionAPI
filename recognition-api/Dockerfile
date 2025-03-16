@@ -5,14 +5,18 @@ FROM python:3.8
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=UTC 
 
-# Install system dependencies for Tesseract and YOLO
+# Add Debian 11 (Bullseye) security repository to install libssl1.1
+RUN echo "deb http://security.debian.org/debian-security bullseye-security main" > /etc/apt/sources.list.d/bullseye-security.list
+
+# Install system dependencies for Tesseract, YOLO, and libssl1.1
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
     libtesseract-dev \
     ffmpeg \
     libgl1-mesa-glx \
-    && rm -rf /var/lib/apt/lists/*
+    libssl1.1 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set up a working directory
 WORKDIR /app

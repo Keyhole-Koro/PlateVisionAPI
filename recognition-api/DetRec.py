@@ -7,7 +7,7 @@ import joblib
 
 from utils.license_plate_detection import detect_license_plate
 from utils.section_detection import detect_sections, range_xy_sections
-from utils.ocr_processing import perform_ocr
+from utils.ocr_processing import OCRProcessor
 from utils.compress import compress_image
 from utils.memoryUsage import measure_time, monitor_memory
 
@@ -26,15 +26,28 @@ def load_yolo_model(model_path):
     return YOLO(model_path)
 
 async def load_models():
-    """ Load both YOLO models asynchronously. """
+    """ Load all models concurrently """
     loop = asyncio.get_event_loop()
-    model_splitting_sections = await loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "section_detection/sections.pt"))
-    model_LicensePlateDet = await loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "license_plate_detection/epoch30.pt"))
-    classification_model = joblib.load("model/LicensePlateClassification/knn_model.pkl")
-    classification_scaler = joblib.load("model/LicensePlateClassification/scaler.pkl")
+    
+    # Concurrent YOLO model loading
+    yolo_tasks = [
+        loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "section_detection/sections.pt")),
+        loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "license_plate_detection/epoch30.pt"))
+    ]
+    
+    # Concurrent joblib loading
+    joblib_tasks = [
+        loop.run_in_executor(None, joblib.load, os.path.join(MODEL_DIR, "LicensePlateClassification/knn_model.pkl")),
+        loop.run_in_executor(None, joblib.load, os.path.join(MODEL_DIR, "LicensePlateClassification/scaler.pkl"))
+    ]
+    
+    # Gather all tasks
+    model_splitting_sections, model_LicensePlateDet = await asyncio.gather(*yolo_tasks)
+    classification_model, classification_scaler = await asyncio.gather(*joblib_tasks)
+    
     return model_splitting_sections, model_LicensePlateDet, classification_model, classification_scaler
 
-async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, flags, measure=False):
+async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, flags, measure=False, ocr_processor=None):
     """ Detect license plates, segment sections, and perform OCR. """
     async def process():
         results = []
@@ -54,73 +67,52 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
             cropped = image_lp[y1:y2, x1:x2]
             sections, LP_cls = detect_sections(model_splitting_sections, cropped)
 
-            # for license plate class prediction
-            min_x, min_y, max_x, max_y = range_xy_sections(sections)
-                # Load the trained model
-            section_part_cropped = cropped[min_y+10:max_y-10, min_x+10:max_x-10]
-            lp_cls = inference_class(section_part_cropped,
+            if not sections:
+                print("No sections detected, skipping...")
+                continue
+            
+            lp_cls = inference_class(image_lp,
                                      model=classification_model,
                                      scaler=classification_scaler
                                      )
             
-            result = await perform_ocr(TESSERACT_DIR,
-                                       cropped,
-                                       sections,
-                                       flags,
-                                       de_pattern=lp_cls == "designed" or lp_cls == "private"
-                                       )
+            result = {}
+
+            for (cls_number, x1, y1, x2, y2) in sections:
+                section_name = cls_[cls_number]
+                if flags[section_name]:
+                    count[section_name] += 1
+                    section_part_cropped = cropped[y1:y2, x1:x2]
+                    cv2.imwrite(f"output/{section_name}_{count[section_name]}.jpg", section_part_cropped)
+                    result[section_name] = await ocr_processor.process_section(section_part_cropped, section_name)
             
             result["class"] = lp_cls
 
             results.append(result)
 
-            for (cls_number, s_x1, s_y1, s_x2, s_y2) in sections:
-                # Draw bounding box and recognized text on the image
-                cv2.rectangle(image_lp, (x1+s_x1, y1+s_y1), (x1+s_x2, y1+s_y2), (0, 255, 0), 2)
+            if flags["annotated_image"]:
+                for (cls_number, s_x1, s_y1, s_x2, s_y2) in sections:
+                    # Draw bounding box and recognized text on the image
+                    cv2.rectangle(image_lp, (x1+s_x1, y1+s_y1), (x1+s_x2, y1+s_y2), (0, 255, 0), 2)
 
             print("Recognized Text:", result)
-            plt.figure(figsize=(10, 6))
-            plt.imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-            plt.axis('off')
-            plt.show()
-        
-        # Show the final image with all bounding boxes and text
-        plt.figure(figsize=(10, 6))
-        plt.imshow(cv2.cvtColor(image_lp, cv2.COLOR_BGR2RGB))
-        plt.axis('off')
-        plt.show()
 
         return results, image_lp
 
+    print(count)
+
     return await measure_time(process)() if measure else await process()
 
-async def full_pipeline(image, measure=False):
-    """ Full pipeline: detect, crop, transform, segment, and recognize text. """
-    
-    if measure:
-        memory_before = monitor_memory()
-        print(f"Memory before execution: {memory_before} MB")
-    else:
-        memory_before = 0  # No memory measurement if measure is False
-    
-    model_splitting_sections, model_LicensePlateDet = await load_models()
-    
-    compressed_image = compress_image(image, compression_quality=100)
-    
-    result, processed_image = await detect_and_recognize(model_LicensePlateDet, model_splitting_sections, compressed_image, measure)
-    
-    if measure:
-        memory_after = monitor_memory()
-        memory_used = memory_after - memory_before
-        print(f"Memory after execution: {memory_after} MB")
-        print(f"Memory used: {memory_used} MB")
-    else:
-        memory_used = 0  # No memory measurement if measure is False
-    
-    return result, processed_image
+cls_ = {
+    0: "region",
+    1: "hiragana",
+    2: "classification",
+    3: "number"
+}
 
-if __name__ == "__main__":
-    image_path = "../image/image7.png"
-    image = cv2.imread(image_path)
-
-    asyncio.run(full_pipeline(image, measure=True))
+count = {
+    "region": 0,
+    "hiragana": 0,
+    "classification": 0,
+    "number": 0
+}

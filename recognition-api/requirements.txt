@@ -25,3 +25,6 @@ joblib
 thop
 
 scikit-learn
+
+paddleocr
+paddlepaddle
