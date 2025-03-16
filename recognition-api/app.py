@@ -9,7 +9,7 @@ import numpy as np
 import time
 
 from DetRec import detect_and_recognize, load_models
-from utils.ocr_processing import OCRProcessor
+from utils.ocr_processing import OCRProcessorConfig
 
 app = FastAPI()
 
@@ -64,7 +64,7 @@ async def process_image(
         "classification": {"engine": paddle_engine, "model": classification_model, "lang": "en"},
         "number": {"engine": paddle_engine, "model": number_model, "lang": "en"}
     }
-    ocr_processor = OCRProcessor(config=ocr_config)
+    ocr_processor = OCRProcessorConfig(config=ocr_config)
 
     # Run the pipeline with flags
     result, processed_image = await detect_and_recognize(
@@ -143,7 +143,7 @@ async def main():
         }
     }
     
-    ocr_processor = OCRProcessor(config=ocr_config)
+    ocr_processor_config = OCRProcessorConfig(config=ocr_config)
 
     # Run pipeline
     result, processed_image = await detect_and_recognize(
@@ -154,7 +154,7 @@ async def main():
         image,
         flags,
         measure=True,
-        ocr_processor=ocr_processor
+        ocr_processor_config=ocr_processor_config
     )
 
     print(f"Execution time: {time.time() - start_time}")

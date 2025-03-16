@@ -7,7 +7,6 @@ import joblib
 
 from utils.license_plate_detection import detect_license_plate
 from utils.section_detection import detect_sections, range_xy_sections
-from utils.ocr_processing import OCRProcessor
 from utils.compress import compress_image
 from utils.memoryUsage import measure_time, monitor_memory
 
@@ -47,7 +46,7 @@ async def load_models():
     
     return model_splitting_sections, model_LicensePlateDet, classification_model, classification_scaler
 
-async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, flags, measure=False, ocr_processor=None):
+async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, classification_model, classification_scaler, image, flags, measure=False, ocr_processor_config=None):
     """ Detect license plates, segment sections, and perform OCR. """
     async def process():
         results = []
@@ -84,7 +83,10 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
                     count[section_name] += 1
                     section_part_cropped = cropped[y1:y2, x1:x2]
                     cv2.imwrite(f"output/{section_name}_{count[section_name]}.jpg", section_part_cropped)
-                    result[section_name] = await ocr_processor.process_section(section_part_cropped, section_name)
+
+                    engine_instance = ocr_processor_config[section_name]["engine_instance"]
+
+                    result[section_name] = await engine_instance.recognize_text(section_part_cropped)
             
             result["class"] = lp_cls
 
