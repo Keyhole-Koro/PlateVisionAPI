@@ -8,7 +8,7 @@ def detect_license_plate(model_LicensePlateDet, image, debug=False):
     if results[0].boxes:
         for box in results[0].boxes.data:
             x1, y1, x2, y2 = map(int, box[:4].tolist())
-            pad_x, pad_y = 20, 20  # Adding some padding
+            pad_x, pad_y = 0, 0  # Adding some padding
             x1, y1, x2, y2 = max(0, x1 - pad_x), max(0, y1 - pad_y), x2 + pad_x, y2 + pad_y
             detections.append((x1, y1, x2, y2))
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)

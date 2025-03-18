@@ -7,16 +7,16 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ''
 # Initialize the OCR model with base language and custom model
 ocr = PaddleOCR(
     use_gpu=False,
-    lang='japan',  # Use base Japanese model
+    lang='en',  # Use base Japanese model
     det=False,     # Disable detection
     cls=False,     # Disable classification
-    model_dir='model/paddle/hiragana',  # Path to custom recognition model
-    rec_model_dir='model/paddle/hiragana',  # Path to custom recognition model
+    model_dir='model/paddle/number',  # Path to custom recognition model
+    rec_model_dir='model/paddle/number',  # Path to custom recognition model
     show_log=True
 )
 
 # Test image path
-image_path = '../output/hiragana_15.jpg'
+image_path = '../output/number2.jpg'
 
 # Perform OCR
 try:

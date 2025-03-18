@@ -122,7 +122,6 @@ def filter_valid_detections(sections):
     # Check if we have at least one of each section
     if any(len(group) == 0 for group in section_groups.values()):
         return None
-
     # Find best combination of sections that satisfy relative positions
     best_sections = []
     min_error = float('inf')

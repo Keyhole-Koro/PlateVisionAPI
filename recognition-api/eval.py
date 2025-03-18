@@ -1,7 +1,7 @@
 import os
 import cv2
 from DetRec import detect_and_recognize, load_models
-from utils.ocr_processing import OCRProcessor
+from utils.ocr_processing import OCRProcessorConfig
 import asyncio
 
 tesseract_engine = "tesseract"
@@ -119,7 +119,7 @@ async def main():
         }
     }
     
-    ocr_processor = OCRProcessor(config=ocr_config)
+    ocr_processor_config = OCRProcessorConfig(config=ocr_config)
 
     predictions = []
     print('Evaluating images...{}'.format(len(images)))
@@ -140,7 +140,7 @@ async def main():
             image,
             flags,
             measure,
-            ocr_processor
+            ocr_processor_config
         )
 
         print(prediction)

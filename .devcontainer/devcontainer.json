@@ -1,7 +1,0 @@
-{
-    "name": "License Plate JP",
-    "build": {
-        "dockerfile": "../recognition-api/Dockerfile",
-        "context": ".."
-    }
-}
