@@ -1,6 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Query
 import asyncio
-from io import BytesIO
 from PIL import Image, ImageOps
 import base64
 import os
@@ -31,13 +30,12 @@ async def process_image(
     hiragana_model: str = Query("", description="OCR engine for hiragana"),
     classification_model: str = Query("", description="OCR engine for classification"),
     number_model: str = Query("", description="OCR engine for number"),
-    recognition_only: bool = Query(False, description="Return only recognition result"),
-    annotated_image: bool = Query(True, description="Return annotated image"),
+    only_recognition: bool = Query(False, description="Return only recognition result"),
+    return_image_annotation: bool = Query(True, description="Return annotated image"),
     hiragana: bool = Query(True, description="Include hiragana in result"),
     classification: bool = Query(True, description="Include classification in result"),
     number: bool = Query(True, description="Include number in result")
 ):
-    start_time = time.time()
 
     # Save the uploaded image to the upload folder
     file_location = os.path.join(UPLOAD_FOLDER, file.filename)
@@ -50,9 +48,9 @@ async def process_image(
     image = np.array(image)
 
     flags = {
-        "recognition_only": recognition_only,
-        "annotated_image": annotated_image,
-        "hiragana": hiragana,
+        "only_recognition": only_recognition,
+        "return_image_annotation": return_image_annotation,
+        "hiragana": False,
         "classification": classification,
         "number": number,
         "region": False
@@ -80,16 +78,13 @@ async def process_image(
 
     response = {"result": result}
 
-    if annotated_image:
+    if return_image_annotation:
         # Convert and encode image only if requested
         processed_image_rgb = cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB)
         processed_image_location = os.path.join(UPLOAD_FOLDER, f"processed_{file.filename}")
         cv2.imwrite(processed_image_location, processed_image_rgb)
         _, buffer = cv2.imencode('.jpg', processed_image_rgb)
-        response["image"] = base64.b64encode(buffer).decode('utf-8')
-
-    # Add execution time
-    response["execution_time"] = time.time() - start_time
+        response["anotated_image"] = base64.b64encode(buffer).decode('utf-8')
 
     return response
 
@@ -101,8 +96,8 @@ async def main():
     model_splitting_sections, model_LicensePlateDet, classification_model, classification_scaler = await load_models()
     
     # Test parameters
-    recognition_only = False
-    annotated_image = True
+    only_recognition = False
+    return_image_annotation = True
     hiragana = True
     classification = True
     number = True
@@ -116,8 +111,8 @@ async def main():
         return
 
     flags = {
-        "recognition_only": recognition_only,
-        "annotated_image": annotated_image,
+        "only_recognition": only_recognition,
+        "return_image_annotation": return_image_annotation,
         "hiragana": hiragana,
         "classification": classification,
         "number": number,

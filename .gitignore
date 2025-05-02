@@ -1,0 +1,7 @@
+image
+__pycache__
+output
+node_modules
+detection_results
+materials
+model

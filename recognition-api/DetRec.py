@@ -30,7 +30,7 @@ async def load_models():
     
     # Concurrent YOLO model loading
     yolo_tasks = [
-        loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "section_detection/sections.pt")),
+        loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "section_detection/new_sections.pt")),
         loop.run_in_executor(None, load_yolo_model, os.path.join(YOLO_DIR, "license_plate_detection/epoch30.pt"))
     ]
     
@@ -86,6 +86,10 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
 
                     engine_instance = ocr_processor_config[section_name]["engine_instance"]
 
+                    if engine_instance is None:
+                        print(f"No OCR engine for {section_name}, skipping...")
+                        continue
+
                     result[section_name] = await engine_instance.recognize_text(section_part_cropped)
             
             result["class"] = lp_cls
@@ -100,8 +104,6 @@ async def detect_and_recognize(model_LicensePlateDet, model_splitting_sections, 
             print("Recognized Text:", result)
 
         return results, image_lp
-
-    print(count)
 
     return await measure_time(process)() if measure else await process()
 

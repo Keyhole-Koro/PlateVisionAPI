@@ -189,7 +189,7 @@ def correct_section_positions(sections):
 async def evaluate_detection():
     # Load models
     model_LicensePlateDet = YOLO(os.path.join(YOLO_DIR, "license_plate_detection/epoch30.pt"))
-    model_sections = YOLO(os.path.join(YOLO_DIR, "section_detection/sections.pt"))
+    model_sections = YOLO(os.path.join(YOLO_DIR, "section_detection/new_sections.pt"))
     
     # Load dataset
     eval_dataset_path = 'recognition-api/eval_dataset'

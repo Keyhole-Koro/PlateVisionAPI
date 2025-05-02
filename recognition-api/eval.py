@@ -36,6 +36,7 @@ def calculate_accuracy(predictions, labels):
         else:
             mismatches.append({
                 'index': i,
+                'path': pred['path'],
                 'type': 'hiragana',
                 'predicted': pred_hiragana,
                 'actual': label[1]
@@ -48,6 +49,7 @@ def calculate_accuracy(predictions, labels):
         else:
             mismatches.append({
                 'index': i,
+                'path': pred['path'],
                 'type': 'classification',
                 'predicted': pred_class,
                 'actual': label[0]
@@ -61,6 +63,7 @@ def calculate_accuracy(predictions, labels):
         else:
             mismatches.append({
                 'index': i,
+                'path': pred['path'],
                 'type': 'number',
                 'predicted': pred_number,
                 'actual': actual_number
@@ -70,6 +73,7 @@ def calculate_accuracy(predictions, labels):
     print("\nMismatches:")
     for mismatch in mismatches:
         print(f"Index {mismatch['index']}: {mismatch['type']}")
+        print(f"  Image: {mismatch['path']}")
         print(f"  Predicted: {mismatch['predicted']}")
         print(f"  Actual: {mismatch['actual']}\n")
     
@@ -102,9 +106,10 @@ async def main():
     measure = False
 
     ocr_config = {
+
         "hiragana": {
             "engine": "paddle",
-            "model": "hiragana",
+            "model": "hiraganaV6",
             "lang": "japan"
         },
         "classification": {
@@ -147,12 +152,14 @@ async def main():
 
         if prediction == []:
             predictions.append({
+                "path": image_path,
                 "hiragana": '',
                 "classification": '',
                 "number": ''
             })
         else:
             predictions.append({
+                "path": image_path,
                 "hiragana": prediction[0].get("hiragana", '').split(" ")[0].replace("\t", ""),
                 "classification": prediction[0].get("classification", ''),
                 "number": prediction[0].get("number", '')

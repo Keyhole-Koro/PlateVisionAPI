@@ -1,0 +1,19 @@
+# Core dependencies
+numpy>=1.21.0
+opencv-python>=4.5.3
+Pillow>=8.3.1
+fastapi>=0.68.0
+python-multipart>=0.0.5
+uvicorn>=0.15.0
+matplotlib>=3.4.3
+joblib>=1.0.1
+
+# YOLO dependencies
+ultralytics>=8.0.0
+
+# OCR dependencies
+pytesseract>=0.3.8
+# Paddle dependencies - specific versions to avoid protobuf issues
+protobuf<=3.20.0
+paddlepaddle==2.4.2
+paddleocr==2.6.1.3
