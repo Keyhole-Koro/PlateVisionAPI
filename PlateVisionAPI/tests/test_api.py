@@ -18,7 +18,12 @@ async def test_process_image():
         try:
             async with httpx.AsyncClient() as client:
                 start_time = time.time()
-                response = await client.post(API_URL, files={"file": ("test_image.jpg", image_data, "image/jpeg")})
+                # Add the `measure=true` parameter to the request
+                response = await client.post(
+                    API_URL,
+                    files={"file": ("test_image.jpg", image_data, "image/jpeg")},
+                    params={"measure": "true", "return_image_annotation": "false"}  # Add query parameters here
+                )
                 elapsed_time = time.time() - start_time
 
             assert response.status_code == 200, f"Unexpected status code: {response.status_code}"

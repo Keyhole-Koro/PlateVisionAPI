@@ -4,4 +4,5 @@ output
 node_modules
 detection_results
 materials
-model
+models
+venv

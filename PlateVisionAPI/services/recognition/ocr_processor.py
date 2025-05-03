@@ -1,8 +1,8 @@
 import os
 import cv2
 import asyncio
-from services.recognition.models.charCNN import CharCNNEngine
-from services.recognition.models.TesseractOCR import TesseractOCR
+#from PlateVisionAPI.services.recognition.models.freezed.charCNN import CharCNNEngine
+#from PlateVisionAPI.services.recognition.models.freezed.TesseractOCR import TesseractOCR
 from services.recognition.models.PaddleOCR import PaddleOCREngine
 
 def convert_to_binary(image, threshold=128):
@@ -19,11 +19,13 @@ async def initialize_ocr_engine(cfg):
     if cfg["engine"] == "-":
         return None
     elif cfg["engine"] == "tesseract":
-        return TesseractOCR(model=cfg["model"])
+        #return TesseractOCR(model=cfg["model"])
+        pass
     elif cfg["engine"] == "paddle":
         return PaddleOCREngine(rec_model=cfg["model"], lang=cfg["lang"])
     elif cfg["engine"] == "char_cnn":
-        return CharCNNEngine(model_name=cfg["model"])
+        #return CharCNNEngine(model_name=cfg["model"])
+        pass
     else:
         print(f"Invalid OCR engine: {cfg['engine']}")
         return None
