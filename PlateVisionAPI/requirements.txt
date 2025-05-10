@@ -1,8 +1,12 @@
 # Auto-generated requirements.txt
 fastapi
 joblib
+mangum
 matplotlib
 numpy
-paddleocr
+onnxruntime
 psutil
+pyclipper
+shapely
 ultralytics
+python-multipart

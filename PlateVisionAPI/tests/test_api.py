@@ -25,8 +25,12 @@ async def test_process_image():
                     params={"measure": "true", "return_image_annotation": "false"}  # Add query parameters here
                 )
                 elapsed_time = time.time() - start_time
-
+                # Save the response image if it
             assert response.status_code == 200, f"Unexpected status code: {response.status_code}"
+            if "image" in response.headers.get("content-type", ""):
+                with open("response_image.jpg", "wb") as output_file:
+                    output_file.write(response.content)
+                print("Response image saved as 'response_image.jpg'")
             response_data = response.json()
             assert "result" in response_data, "Response does not contain 'result'"
             print(f"Test passed. Response: {response_data}, Time taken: {elapsed_time:.2f} seconds")

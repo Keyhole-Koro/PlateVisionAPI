@@ -1,136 +1,141 @@
-import cv2
+from loaders.loader import load_all_models
 
-from services.detection.license_plate import det_license_plate
-from services.detection.section import det_sections
-from services.classification.inference import plate_class
-
-from utils.memoryUsage import measure_time_and_memory, monitor_memory
-
-cls_ = {
-    0: "region",
-    1: "hiragana",
-    2: "classification",
-    3: "number"
-}
-
-@measure_time_and_memory(enabled=True)  # Toggle monitoring with the `enabled` flag
 async def PlateVision(
-    model_LicensePlateDet,
-    model_splitting_sections,
-    classification_model,
-    classification_scaler,
-    image,
-    flags,
-    measure=False,
-    ocr_processor_config=None
+    image,  # numpy.ndarray: The input image to process
+    classifying_model,  # dict: Configuration for the classification model
+    detection_config,  # dict: Configuration for the detection model
+    ocr_config,  # dict: Configuration for the OCR model
+    flags,  # dict: Flags to control the behavior of the function
 ):
-    """ Detect license plates, segment sections, and perform OCR. """
-    print(f"Memory usage before processing: {monitor_memory():.2f} MB")
+    try:
+        # Load models and validate configurations
+        configs_with_engine_loaded_models = await load_models(
+            classifying_model,
+            detection_config,
+            ocr_config,
+        )
+        #validate_configs(configs_with_engine_loaded_models, flags)
 
-    async def process():
-        # Detect license plates or use the entire image
-        detections, annotated_image = detect_plate_or_default(model_LicensePlateDet, image, flags)
-
-        # Process each detection
-        results = [
-            await process_detection(
-                detection,
-                annotated_image,
-                model_splitting_sections,
-                classification_model,
-                classification_scaler,
-                flags,
-                ocr_processor_config
-            )
-            for detection in detections
-        ]
-
-        # Flatten results and return
-        flattened_results = [result for result, _ in results]
-        final_image = combine_annotated_images([img for _, img in results])
-        print(f"Memory usage after processing: {monitor_memory():.2f} MB")
-        return flattened_results, final_image
-
-    def detect_plate_or_default(model, image, flags):
-        """Detect license plates or use the entire image if only recognition is requested."""
-        if not flags["only_recognition"]:
-            detections, annotated_image = det_license_plate(model, image)
-        else:
-            height, width = image.shape[:2]
-            detections = [(0, 0, width, height)]
-            annotated_image = image
-        return detections, annotated_image
-
-    async def process_detection(
-        detection,
-        image,
-        model_splitting_sections,
-        classification_model,
-        classification_scaler,
-        flags,
-        ocr_processor_config
-    ):
-        """Process a single detection."""
-        x1, y1, x2, y2 = detection
-        cropped = crop_image(image, x1, y1, x2, y2)
-
-        # Detect sections
-        sections, LP_cls = det_sections(model_splitting_sections, cropped)
-        if not sections:
-            print("No sections detected, skipping...")
-            return {}, image
-
-        # Classify the license plate
-        lp_cls = plate_class(cropped, model=classification_model, scaler=classification_scaler)
-
-        # Process sections
-        result = await process_sections(sections, cropped, flags, ocr_processor_config)
-        result["class"] = lp_cls
-
-        # Annotate sections on the image
-        annotated_image = annotate_sections(image, x1, y1, sections, flags)
-
-        return result, annotated_image
-
-    async def process_sections(sections, cropped, flags, ocr_processor_config):
-        """Process each section and perform OCR."""
+        # Initialize results
         results = {}
-        for cls_number, s_x1, s_y1, s_x2, s_y2 in sections:
-            section_name = cls_[cls_number]
-            if not flags.get(section_name, False):
-                continue
 
-            section_part_cropped = crop_image(cropped, s_x1, s_y1, s_x2, s_y2)
-            engine_instance = ocr_processor_config[section_name]["engine_instance"]
+        if flags.get("only_recognition", False):
+            # Single bounding box covering the entire image
+            license_plates = [{"bbox": [0, 0, image.shape[1], image.shape[0]]}]
+        else:
+            # Detect license plates
+            license_plates = await detect_license_plates(image, configs_with_engine_loaded_models)
 
-            if engine_instance is None:
-                print(f"No OCR engine for {section_name}, skipping...")
-                continue
+        for plate in license_plates:
+            try:
+                print("Detected license plate:", plate)
+                # Crop the license plate image
+                plate_image = crop_image(image, plate.get("bbox", []))
+                print("Cropped plate image shape:", plate_image.shape)
+                # Detect sections within the license plate
+                sections = await detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags)
+                print("Detected sections:", sections)
+                results["splitting_sections"] = sections
 
-            results[section_name] = await engine_instance.recognize_text(section_part_cropped)
+                for section, section_data in sections.items():
+                    try:
+                        cropped_section_image = crop_image(plate_image, section_data.get("bbox", []))
+                        # Perform OCR on each section
+                        results[section] = await ocr_sections(cropped_section_image, section, configs_with_engine_loaded_models)
+                    except Exception as e:
+                        results[section] = f"Error during OCR: {str(e)}"
+            except Exception as e:
+                results["error"] = f"Error processing plate: {str(e)}"
+
         return results
+    except Exception as e:
+        return {"error": f"Error in PlateVision: {str(e)}"}
 
-    def crop_image(image, x1, y1, x2, y2):
-        """Crop a region from the image."""
-        return image[y1:y2, x1:x2]
 
-    def annotate_sections(image, x1, y1, sections, flags):
-        """Annotate sections on the image."""
-        annotated_image = image.copy()
-        for cls_number, s_x1, s_y1, s_x2, s_y2 in sections:
-            if flags["return_image_annotation"]:
-                cv2.rectangle(
-                    annotated_image,
-                    (x1 + s_x1, y1 + s_y1),
-                    (x1 + s_x2, y1 + s_y2),
-                    (0, 255, 0),
-                    2
-                )
-        return annotated_image
+async def detect_license_plates(image, configs_with_engine_loaded_models):
+    try:
+        detection_engine = configs_with_engine_loaded_models["detection"]["license_plate"].get("engine_instance")
+        if detection_engine:
+            return await detection_engine.detect(image)
+        return []
+    except Exception as e:
+        return {"error": f"Error detecting license plates: {str(e)}"}
 
-    def combine_annotated_images(images):
-        """Combine all annotated images into one."""
-        # For simplicity, return the first image (or implement a more complex combination logic)
-        return images[0] if images else None
-    
-    return await process()
+
+async def detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags):
+    try:
+        splitting_sections_config = configs_with_engine_loaded_models["detection"].get("splitting_sections", {})
+        detection_engine = splitting_sections_config.get("engine_instance")
+        if not detection_engine:
+            return {}
+
+        splitting_sections = await detection_engine.detect(plate_image)
+
+        map_class_target = {
+            0: "region",
+            1: "hiragana",
+            2: "classification",
+            3: "number"
+        }
+
+        print("Splitting sections detected:", splitting_sections)
+
+        # Filter sections based on flags
+        sections = {}
+        for section in splitting_sections:
+            print("Section:", section)
+            target = map_class_target.get(section.get("class_id"))
+            if not target:
+                continue
+            if not flags.get(target, False):
+                continue
+            print("reached here")
+            sections[target] = section
+
+        return sections
+    except Exception as e:
+        return {"error": f"Error detecting splitting sections: {str(e)}"}
+
+
+async def ocr_sections(plate_image, section, configs_with_engine_loaded_models):
+    try:
+        ocr_engine = configs_with_engine_loaded_models["ocr"].get(section, {}).get("engine_instance")
+        if ocr_engine:
+            return await ocr_engine.recognize_text(plate_image)
+        return ""
+    except Exception as e:
+        return f"Error during OCR: {str(e)}"
+
+
+async def load_models(classifying_model, detection_config, ocr_config):
+    try:
+        return await load_all_models(
+            classifying_model,
+            detection_config,
+            ocr_config,
+        )
+    except Exception as e:
+        return {"error": f"Error loading models: {str(e)}"}
+
+
+def crop_image(image, coordinates):
+    try:
+        if len(coordinates) == 4:
+            return image[coordinates[1]:coordinates[3], coordinates[0]:coordinates[2]]
+        return image
+    except Exception as e:
+        return {"error": f"Error cropping image: {str(e)}"}
+
+
+def validate_configs(configs_with_engine_loaded_models, flags):
+    try:
+        if flags.get("region", False) and not configs_with_engine_loaded_models.get("region"):
+            raise ValueError("Region detection model is not loaded.")
+        if flags.get("hiragana", False) and not configs_with_engine_loaded_models.get("hiragana"):
+            raise ValueError("Hiragana detection model is not loaded.")
+        if flags.get("classification", False) and not configs_with_engine_loaded_models.get("classification"):
+            raise ValueError("Classification detection model is not loaded.")
+        if flags.get("number", False) and not configs_with_engine_loaded_models.get("number"):
+            raise ValueError("Number detection model is not loaded.")
+    except Exception as e:
+        raise ValueError(f"Error validating configs: {str(e)}")
