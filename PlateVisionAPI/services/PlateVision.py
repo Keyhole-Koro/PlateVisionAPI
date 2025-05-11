@@ -28,13 +28,10 @@ async def PlateVision(
 
         for plate in license_plates:
             try:
-                print("Detected license plate:", plate)
                 # Crop the license plate image
                 plate_image = crop_image(image, plate.get("bbox", []))
-                print("Cropped plate image shape:", plate_image.shape)
                 # Detect sections within the license plate
                 sections = await detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags)
-                print("Detected sections:", sections)
                 results["splitting_sections"] = sections
 
                 for section, section_data in sections.items():
@@ -77,8 +74,6 @@ async def detect_splitting_sections(plate_image, configs_with_engine_loaded_mode
             2: "classification",
             3: "number"
         }
-
-        print("Splitting sections detected:", splitting_sections)
 
         # Filter sections based on flags
         sections = {}
