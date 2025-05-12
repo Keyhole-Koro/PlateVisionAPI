@@ -1,9 +1,8 @@
 from ultralytics import YOLO
-import numpy as np
 import cv2
 
 from services.detection.interface import DetectionEngine
-from services.detection.interface import get_model, set_model, clear_model
+from services.detection.interface import get_model, set_model
 
 class YOLOEngine(DetectionEngine):
     def __init__(self, model_path):

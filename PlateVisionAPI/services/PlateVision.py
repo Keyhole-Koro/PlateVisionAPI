@@ -17,7 +17,7 @@ async def PlateVision(
         #validate_configs(configs_with_engine_loaded_models, flags)
 
         # Initialize results
-        results = {}
+        results = []
 
         if flags.get("only_recognition", False):
             # Single bounding box covering the entire image
@@ -28,21 +28,25 @@ async def PlateVision(
 
         for plate in license_plates:
             try:
+                result_plate = {}
                 # Crop the license plate image
                 plate_image = crop_image(image, plate.get("bbox", []))
                 # Detect sections within the license plate
                 sections = await detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags)
-                results["splitting_sections"] = sections
+                result_plate["splitting_sections"] = sections
 
                 for section, section_data in sections.items():
                     try:
                         cropped_section_image = crop_image(plate_image, section_data.get("bbox", []))
                         # Perform OCR on each section
-                        results[section] = await ocr_sections(cropped_section_image, section, configs_with_engine_loaded_models)
+                        result_plate[section] = await ocr_sections(cropped_section_image, section, configs_with_engine_loaded_models)
                     except Exception as e:
-                        results[section] = f"Error during OCR: {str(e)}"
+                        result_plate[section] = f"Error during OCR: {str(e)}"
+                results.append(result_plate)
+
             except Exception as e:
-                results["error"] = f"Error processing plate: {str(e)}"
+                results.append(f"Error processing plate: {str(e)}")
+
 
         return results
     except Exception as e:
@@ -78,13 +82,11 @@ async def detect_splitting_sections(plate_image, configs_with_engine_loaded_mode
         # Filter sections based on flags
         sections = {}
         for section in splitting_sections:
-            print("Section:", section)
             target = map_class_target.get(section.get("class_id"))
             if not target:
                 continue
             if not flags.get(target, False):
                 continue
-            print("reached here")
             sections[target] = section
 
         return sections

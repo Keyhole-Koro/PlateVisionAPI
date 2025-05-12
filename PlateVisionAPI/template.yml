@@ -1,0 +1,19 @@
+Resources:
+  PlateVisionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: platevision-api:latest
+      Timeout: 20
+      MemorySize: 2048
+      Events:
+        ProcessImage:
+          Type: Api
+          Properties:
+            Path: /process_image
+            Method: post
+        Ping:
+          Type: Api
+          Properties:
+            Path: /ping
+            Method: get

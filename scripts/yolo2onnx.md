@@ -1,0 +1,1 @@
+yolo export model=yolo11n.pt format=onnx

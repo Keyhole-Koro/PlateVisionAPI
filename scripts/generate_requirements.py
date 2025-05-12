@@ -2,7 +2,7 @@ import os
 import re
 import pkg_resources
 
-EXCLUDED_FOLDERS = {"freezed", "tests"}
+EXCLUDED_FOLDERS = {"freezed", "tests", "venv"}
 
 def extract_imports_from_file(filepath):
     """Extract imported modules from a Python file."""

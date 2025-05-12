@@ -1,4 +1,6 @@
-from fastapi import APIRouter, File, UploadFile, Query, Request
+from fastapi import APIRouter, File, UploadFile, Query, Request, Body
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from PIL import Image, ImageOps, UnidentifiedImageError
 import base64
 import cv2
@@ -7,17 +9,25 @@ from io import BytesIO
 import os
 
 from root import BASE_DIR
-
 from services.PlateVision import PlateVision
 from services.ocr.paddle_onnx_engine import PaddleonnxEngine
 from services.detection.yolo_engine import YOLOEngine
 
 router = APIRouter()
 
+class Base64ImageRequest(BaseModel):
+    isBase64Encoded: bool
+    body: str
+
+@router.get("/ping")
+async def ping():
+    """Health check endpoint."""
+    return {"status": "ok"}
+
 @router.post("/process_image/")
 async def process_image(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
     measure: bool = False,
     only_recognition: bool = Query(False, description="Return only recognition result"),
     return_image_annotation: bool = Query(True, description="Return annotated image"),
@@ -25,17 +35,32 @@ async def process_image(
     return_number: bool = Query(True, description="Include number in result")
 ):
     try:
-        print("Processing image...")
-        # Read the uploaded file as binary
-        file_content = await file.read()
+        print("Received request to process image...")
 
-        # Convert the binary data to an image
+        # Load image from file or base64
+        if file:
+            file_content = await file.read()
+        else:
+            data = await request.json()
+            print("Request body:", data)
+            if data.get("base64_data") and data["base64_data"].get("isBase64Encoded"):
+                try:
+                    file_content = base64.b64decode(data["base64_data"]["body"])
+                except Exception as e:
+                    return JSONResponse(content={"error": f"Invalid base64 data: {e}"}, status_code=400)
+            else:
+                return JSONResponse(content={
+                    "error": f"No image data provided{type(file)}, {data.get('base64_data')}"
+                }, status_code=400)
+
+        # (rest of processing logic continues as before)
+
         try:
             image = Image.open(BytesIO(file_content))
             image = ImageOps.exif_transpose(image)
             image = np.array(image)
         except UnidentifiedImageError:
-            return {"error": "Uploaded file is not a valid image"}
+            return JSONResponse(content={"error": "Uploaded data is not a valid image"}, status_code=400)
 
         flags = {
             "only_recognition": only_recognition,
@@ -46,7 +71,7 @@ async def process_image(
             "region": False
         }
 
-        classifying_model_config_no_loding_yet = {
+        classifying_model_config = {
             "model": {
                 "path": os.path.join(BASE_DIR, "models", "classifying", "knn_model.pkl"),
             },
@@ -55,7 +80,7 @@ async def process_image(
             }
         }
 
-        detection_config_no_loding_yet = {
+        detection_config = {
             "license_plate": {
                 "engine": YOLOEngine,
                 "engine_instance": None,
@@ -68,7 +93,7 @@ async def process_image(
             }
         }
 
-        ocr_config_no_loding_yet = {
+        ocr_config = {
             "classification": {
                 "engine": PaddleonnxEngine,
                 "engine_instance": None,
@@ -85,74 +110,69 @@ async def process_image(
             "region": None
         }
 
-        print("Loading models...")
-        # Run the pipeline with flags
-        platevisioin_results = await PlateVision(
+        platevision_results = await PlateVision(
             image,
-            classifying_model_config_no_loding_yet,
-            detection_config_no_loding_yet,
-            ocr_config_no_loding_yet,
+            classifying_model_config,
+            detection_config,
+            ocr_config,
             flags,
         )
-        print("Models loaded successfully.")
 
-        response = {"result": platevisioin_results}
+        """
+        platevision_results = [{
+            "license_plate": {
+                "bbox": [x1, y1, x2, y2],
+                "confidence": 0.95,
+                "class_id": 0
+            },
+            "splitting_sections": [
+                {
+                    "bbox": [x1, y1, x2, y2],
+                    "confidence": 0.95,
+                    "class_id": 0
+                },
+                ...
+            ],
+            "classification": "ABC123",
+            "number": "123456",
+            "hiragana": "あいうえお",
+            "region": "Tokyo",
+            "annotated_image": "<base64_encoded_image>"
+        }]
+        """
 
-        print("Processing results...")
         if return_image_annotation:
-            print("Creating annotated image...")
-            annotated_image = create_annotated_image(image, platevisioin_results)
-            # Convert and encode image only if requested
-            annotated_image_rgb = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
-            _, buffer = cv2.imencode('.jpg', annotated_image_rgb)
-            response["annotated_image"] = base64.b64encode(buffer).decode('utf-8')
+            for plate_result in platevision_results:
+                annotated_image = create_annotated_image(image, plate_result)
+                annotated_image_rgb = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
+                _, buffer = cv2.imencode('.jpg', annotated_image_rgb)
+                plate_result["annotated_image"] = base64.b64encode(buffer).decode('utf-8')
 
-        return response
+        return platevision_results
 
     except Exception as e:
-        return {"error": str(e)}
-    
-def create_annotated_image(image, visionplate_result):
-    """
-    Create an annotated image with bounding boxes and labels.
-    Args:
-        image (numpy.ndarray): Original image.
-        visionplate_result (dict): Dictionary containing OCR and detection results.
-    Returns:
-        numpy.ndarray: Annotated image.
-    """
+        print(f"Error during processing: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+def create_annotated_image(image, plate_result):
     annotated_image = image.copy()
-    print("Annotated image shape:", annotated_image.shape)
-    detections = visionplate_result["splitting_sections"]
-    print("Detections:", detections)
-    for detection in detections:
-        print("Detection:", detection)
+    
+    # Get the splitting sections dictionary
+    splitting_sections = plate_result.get("splitting_sections", {})
+
+    # Iterate over each key-value pair in the splitting_sections dictionary
+    for key, detection in splitting_sections.items():
         bbox = detection["bbox"]
         confidence = detection["confidence"]
         class_id = detection["class_id"]
-        print("Bounding box:", bbox)
-        map_class_target = {
-            0: "region",
-            1: "hiragana",
-            2: "classification",
-            3: "number"
-        }
-
-        # Get OCR text for the current class
-        key = map_class_target.get(class_id)
-        ocr_text = visionplate_result.get(key, "")
-
-        # Draw bounding box
-        cv2.rectangle(annotated_image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-
-        # Label with class ID and confidence
-        label = f"{key}: {confidence:.2f}"
+        map_class_target = {0: "region", 1: "hiragana", 2: "classification", 3: "number"}
+        label_key = map_class_target.get(class_id, key)  # Use the class ID to map the label
+        
+        # Draw the bounding box and label
+        cv2.rectangle(annotated_image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255, 0, 0), 2)
+        label = f"{label_key}: {confidence:.2f}"
         cv2.putText(annotated_image, label, (bbox[0], bbox[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-        # Draw OCR text near the bottom of the bounding box
-        if ocr_text:
-            cv2.putText(annotated_image, str(ocr_text), (bbox[0], bbox[3] + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
     return annotated_image

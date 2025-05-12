@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from app.routes.process_image import router as process_image_router
 from app.routes.ping import router as ping_router
 
-app = FastAPI()
+app = FastAPI(debug=True)
 
 @app.on_event("startup")
 async def startup_event():

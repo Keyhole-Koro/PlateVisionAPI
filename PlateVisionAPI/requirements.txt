@@ -3,10 +3,11 @@ fastapi
 joblib
 mangum
 matplotlib
-numpy
 onnxruntime
 psutil
 pyclipper
 shapely
 ultralytics
 python-multipart
+scikit-learn
+numpy<2

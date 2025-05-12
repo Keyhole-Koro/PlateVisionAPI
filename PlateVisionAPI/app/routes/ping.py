@@ -1,10 +1,8 @@
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
-@router.post("/ping/")
-def ping():
-    """
-    Ping the server to check if it's running.
-    """
-    return {"message": "Pong!"}
+@router.get("/ping")
+async def ping():
+    return JSONResponse(content={"message": "pong"})
