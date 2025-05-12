@@ -38,6 +38,9 @@ def generate_requirements_file(imports, output_file):
         file.write("# Auto-generated requirements.txt\n")
         for package in imports:
             file.write(f"{package}\n")
+
+        file.write("\n# Additional dependencies\n")
+        file.write("scikit-learn\n")
     print(f"Requirements file generated at: {output_file}")
 
 if __name__ == "__main__":
