@@ -4,7 +4,8 @@ import os
 import time
 import base64
 
-API_URL = "http://127.0.0.1:3000/process_image/"
+API_URL = "https://n2oflso7fky7tjztxcrcss3b2u0noyjb.lambda-url.ap-northeast-3.on.aws/process_image"  # Use the correct address
+API_KEY = "57b0992f"  # Replace with your actual API key
 TEST_IMAGE_PATH = "tests/test_image.jpg"
 
 async def test_process_image():
@@ -24,13 +25,15 @@ async def test_process_image():
     retries = 5
     for attempt in range(retries):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(50.0)) as client:  # Set timeout to 30 seconds
+            async with httpx.AsyncClient(timeout=httpx.Timeout(50.0)) as client:  # Set timeout to 50 seconds
                 start_time = time.time()
-                response = await client.post(
-                    API_URL,
-                    json=json_payload,
-                    params={"measure": "true", "return_image_annotation": "false"}
-                )
+                async with httpx.AsyncClient(verify=False) as client:
+                    response = await client.post(
+                        API_URL,
+                        json=json_payload,
+                        params={"measure": "true", "return_image_annotation": "false"},
+                        headers={"Authorization": f"Bearer {API_KEY}"}
+                    )
                 elapsed_time = time.time() - start_time
                 assert response.status_code == 200, f"Unexpected status code: {response.status_code}...{response}"
                 print(f"Test passed. Response: {response.json()}, Time taken: {elapsed_time:.2f} seconds")

@@ -7,6 +7,8 @@ COPY requirements.txt .
 
 RUN yum install -y mesa-libGL
 
+ENV JOBLIB_MULTIPROCESSING=0
+
 RUN pip install --upgrade pip \
     && pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
     && pip install albumentations==1.4.20 \

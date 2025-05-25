@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Query, Request, Body
+from fastapi import APIRouter, File, UploadFile, Query, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -7,24 +7,28 @@ import cv2
 import numpy as np
 from io import BytesIO
 import os
+from dotenv import load_dotenv
 
 from root import BASE_DIR
 from services.PlateVision import PlateVision
 from services.ocr.paddle_onnx_engine import PaddleonnxEngine
 from services.detection.yolo_engine import YOLOEngine
 
+# Load environment variables
+load_dotenv()
+
 router = APIRouter()
+
+# Get the API keys from the environment and split them into a list
+VALID_API_KEYS = os.getenv("API_KEYS", "").split(",")
+
+print("Valid API keys:", VALID_API_KEYS)
 
 class Base64ImageRequest(BaseModel):
     isBase64Encoded: bool
     body: str
 
-@router.get("/ping")
-async def ping():
-    """Health check endpoint."""
-    return {"status": "ok"}
-
-@router.post("/process_image/")
+@router.post("/process_image")
 async def process_image(
     request: Request,
     file: UploadFile = File(None),
@@ -32,9 +36,14 @@ async def process_image(
     only_recognition: bool = Query(False, description="Return only recognition result"),
     return_image_annotation: bool = Query(True, description="Return annotated image"),
     return_classification: bool = Query(True, description="Include classification in result"),
-    return_number: bool = Query(True, description="Include number in result")
+    return_number: bool = Query(True, description="Include number in result"),
+    api_key: str = Header(None, description="API key for authentication")  # Get API key from headers
 ):
     try:
+        # Validate API key
+        if api_key not in VALID_API_KEYS:
+            return JSONResponse(content={"error": "Invalid API key"}, status_code=401)
+
         print("Received request to process image...")
 
         # Load image from file or base64
@@ -117,29 +126,6 @@ async def process_image(
             ocr_config,
             flags,
         )
-
-        """
-        platevision_results = [{
-            "license_plate": {
-                "bbox": [x1, y1, x2, y2],
-                "confidence": 0.95,
-                "class_id": 0
-            },
-            "splitting_sections": [
-                {
-                    "bbox": [x1, y1, x2, y2],
-                    "confidence": 0.95,
-                    "class_id": 0
-                },
-                ...
-            ],
-            "classification": "ABC123",
-            "number": "123456",
-            "hiragana": "あいうえお",
-            "region": "Tokyo",
-            "annotated_image": "<base64_encoded_image>"
-        }]
-        """
 
         if return_image_annotation:
             for plate_result in platevision_results:
