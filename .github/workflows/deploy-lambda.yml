@@ -37,7 +37,7 @@ jobs:
         run: |
           IMAGE_URI=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO
 
-          docker build -f PlateVisionAPI/aws_lambda.Dockerfile -t $IMAGE_URI:$IMAGE_TAG  PlateVisionAPI/
+          docker build -f PlateVisionAPI/aws_lambda.Dockerfile -t $IMAGE_URI:$IMAGE_TAG PlateVisionAPI/
           docker tag $IMAGE_URI:$IMAGE_TAG $IMAGE_URI:$IMAGE_SHA
 
           docker push $IMAGE_URI:$IMAGE_TAG

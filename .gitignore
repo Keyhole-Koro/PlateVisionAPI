@@ -6,3 +6,7 @@ detection_results
 materials
 models
 venv
+
+*.pem
+
+.env
