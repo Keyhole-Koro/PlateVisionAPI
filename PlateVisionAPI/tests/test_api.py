@@ -4,7 +4,7 @@ import os
 import time
 import base64
 
-API_URL = "https://4yosom3xj2.execute-api.ap-northeast-3.amazonaws.com/stage/process_image"  # Use the correct address
+API_URL = "http://127.0.0.1:3000/process_image"  # Use the correct address
 API_KEY = "57b0992f"  # Replace with your actual API key
 TEST_IMAGE_PATH = "tests/test_image.jpg"
 

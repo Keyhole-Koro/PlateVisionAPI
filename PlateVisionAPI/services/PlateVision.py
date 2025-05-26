@@ -1,3 +1,4 @@
+import traceback
 from loaders.loader import load_all_models
 
 async def PlateVision(
@@ -14,7 +15,6 @@ async def PlateVision(
             detection_config,
             ocr_config,
         )
-        #validate_configs(configs_with_engine_loaded_models, flags)
 
         # Initialize results
         results = []
@@ -41,16 +41,24 @@ async def PlateVision(
                         # Perform OCR on each section
                         result_plate[section] = await ocr_sections(cropped_section_image, section, configs_with_engine_loaded_models)
                     except Exception as e:
-                        result_plate[section] = f"Error during OCR: {str(e)}"
+                        result_plate[section] = {
+                            "error": f"Error during OCR: {str(e)}",
+                            "stacktrace": traceback.format_exc(),
+                        }
                 results.append(result_plate)
 
             except Exception as e:
-                results.append(f"Error processing plate: {str(e)}")
-
+                results.append({
+                    "error": f"Error processing plate: {str(e)}",
+                    "stacktrace": traceback.format_exc(),
+                })
 
         return results
     except Exception as e:
-        return {"error": f"Error in PlateVision: {str(e)}"}
+        return {
+            "error": f"Error in PlateVision: {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
 
 
 async def detect_license_plates(image, configs_with_engine_loaded_models):
@@ -60,7 +68,10 @@ async def detect_license_plates(image, configs_with_engine_loaded_models):
             return await detection_engine.detect(image)
         return []
     except Exception as e:
-        return {"error": f"Error detecting license plates: {str(e)}"}
+        return {
+            "error": f"Error detecting license plates: {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
 
 
 async def detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags):
@@ -68,7 +79,7 @@ async def detect_splitting_sections(plate_image, configs_with_engine_loaded_mode
         splitting_sections_config = configs_with_engine_loaded_models["detection"].get("splitting_sections", {})
         detection_engine = splitting_sections_config.get("engine_instance")
         if not detection_engine:
-            return {}
+            raise ValueError("Splitting sections detection engine is not loaded.")
 
         splitting_sections = await detection_engine.detect(plate_image)
 
@@ -91,7 +102,10 @@ async def detect_splitting_sections(plate_image, configs_with_engine_loaded_mode
 
         return sections
     except Exception as e:
-        return {"error": f"Error detecting splitting sections: {str(e)}"}
+        return {
+            "error": f"Error detecting splitting sections: {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
 
 
 async def ocr_sections(plate_image, section, configs_with_engine_loaded_models):
@@ -101,7 +115,10 @@ async def ocr_sections(plate_image, section, configs_with_engine_loaded_models):
             return await ocr_engine.recognize_text(plate_image)
         return ""
     except Exception as e:
-        return f"Error during OCR: {str(e)}"
+        return {
+            "error": f"Error during OCR for section '{section}': {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
 
 
 async def load_models(classifying_model, detection_config, ocr_config):
@@ -112,27 +129,19 @@ async def load_models(classifying_model, detection_config, ocr_config):
             ocr_config,
         )
     except Exception as e:
-        return {"error": f"Error loading models: {str(e)}"}
+        return {
+            "error": f"Error loading models: {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
 
 
 def crop_image(image, coordinates):
     try:
         if len(coordinates) == 4:
             return image[coordinates[1]:coordinates[3], coordinates[0]:coordinates[2]]
-        return image
+        raise ValueError(f"Invalid coordinates for cropping: {coordinates}")
     except Exception as e:
-        return {"error": f"Error cropping image: {str(e)}"}
-
-
-def validate_configs(configs_with_engine_loaded_models, flags):
-    try:
-        if flags.get("region", False) and not configs_with_engine_loaded_models.get("region"):
-            raise ValueError("Region detection model is not loaded.")
-        if flags.get("hiragana", False) and not configs_with_engine_loaded_models.get("hiragana"):
-            raise ValueError("Hiragana detection model is not loaded.")
-        if flags.get("classification", False) and not configs_with_engine_loaded_models.get("classification"):
-            raise ValueError("Classification detection model is not loaded.")
-        if flags.get("number", False) and not configs_with_engine_loaded_models.get("number"):
-            raise ValueError("Number detection model is not loaded.")
-    except Exception as e:
-        raise ValueError(f"Error validating configs: {str(e)}")
+        return {
+            "error": f"Error cropping image: {str(e)}",
+            "stacktrace": traceback.format_exc(),
+        }
