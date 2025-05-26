@@ -3,12 +3,12 @@ name: Build and Deploy Lambda Container
 on:
   push:
     branches:
-      - prod
+      - stage
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: stage
 
     permissions:
       id-token: write
