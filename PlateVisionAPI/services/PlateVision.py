@@ -51,6 +51,7 @@ async def PlateVision(
             except Exception as e:
                 results.append({
                     "error": f"Error processing plate: {str(e)}",
+                    'content': license_plates,
                     "stacktrace": traceback.format_exc(),
                 })
 
