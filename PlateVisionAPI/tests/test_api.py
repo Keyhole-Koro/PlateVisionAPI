@@ -4,7 +4,7 @@ import os
 import time
 import base64
 
-API_URL = "https://n2oflso7fky7tjztxcrcss3b2u0noyjb.lambda-url.ap-northeast-3.on.aws/process_image"  # Use the correct address
+API_URL = "https://4yosom3xj2.execute-api.ap-northeast-3.amazonaws.com/stage/process_image"  # Use the correct address
 API_KEY = "57b0992f"  # Replace with your actual API key
 TEST_IMAGE_PATH = "tests/test_image.jpg"
 
@@ -32,7 +32,6 @@ async def test_process_image():
                         API_URL,
                         json=json_payload,
                         params={"measure": "true", "return_image_annotation": "false"},
-                        headers={"Authorization": f"Bearer {API_KEY}"}
                     )
                 elapsed_time = time.time() - start_time
                 assert response.status_code == 200, f"Unexpected status code: {response.status_code}...{response}"

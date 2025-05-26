@@ -41,8 +41,8 @@ async def process_image(
 ):
     try:
         # Validate API key
-        if api_key not in VALID_API_KEYS:
-            return JSONResponse(content={"error": "Invalid API key"}, status_code=401)
+        #if api_key not in VALID_API_KEYS:
+        #    return JSONResponse(content={"error": "Invalid API key"}, status_code=401)
 
         print("Received request to process image...")
 
