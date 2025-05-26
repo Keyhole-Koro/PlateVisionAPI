@@ -1,89 +1,82 @@
 import traceback
+import logging
 from loaders.loader import load_all_models
 
-async def PlateVision(
-    image,  # numpy.ndarray: The input image to process
-    classifying_model,  # dict: Configuration for the classification model
-    detection_config,  # dict: Configuration for the detection model
-    ocr_config,  # dict: Configuration for the OCR model
-    flags,  # dict: Flags to control the behavior of the function
-):
-    try:
-        # Load models and validate configurations
-        configs_with_engine_loaded_models = await load_models(
-            classifying_model,
-            detection_config,
-            ocr_config,
-        )
+logger = logging.getLogger(__name__)
 
-        # Initialize results
+def format_error(message, exception):
+    logger.error(f"{message}: {exception}\n{traceback.format_exc()}")
+    return {"error": message}
+
+async def PlateVision(image, classifying_model, detection_config, ocr_config, flags):
+    try:
+        # Load models
+        configs = await load_models(classifying_model, detection_config, ocr_config)
+        if "error" in configs:
+            return configs
+
         results = []
 
-        if flags.get("only_recognition", False):
-            # Single bounding box covering the entire image
-            license_plates = [{"bbox": [0, 0, image.shape[1], image.shape[0]]}]
-        else:
-            # Detect license plates
-            license_plates = await detect_license_plates(image, configs_with_engine_loaded_models)
+        # Step 1: Detection or Fallback
+        license_plates = [{"bbox": [0, 0, image.shape[1], image.shape[0]]}] if flags.get("only_recognition") \
+            else await detect_license_plates(image, configs)
+        if isinstance(license_plates, dict) and "error" in license_plates:
+            return license_plates
 
+        # Step 2: For each plate
         for plate in license_plates:
+            result_plate = {}
             try:
-                result_plate = {}
-                print(f"plate: {plate}")
-                # Crop the license plate image
                 plate_image = crop_image(image, plate.get("bbox", []))
-                # Detect sections within the license plate
-                sections = await detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags)
+                if isinstance(plate_image, dict):  # error occurred
+                    result_plate["error"] = plate_image["error"]
+                    results.append(result_plate)
+                    continue
+
+                # Step 3: Section Detection
+                sections = await detect_splitting_sections(plate_image, configs, flags)
+                if isinstance(sections, dict) and "error" in sections:
+                    result_plate["error"] = sections["error"]
+                    results.append(result_plate)
+                    continue
                 result_plate["splitting_sections"] = sections
 
+                # Step 4: OCR per section
                 for section, section_data in sections.items():
-                    try:
-                        cropped_section_image = crop_image(plate_image, section_data.get("bbox", []))
-                        # Perform OCR on each section
-                        result_plate[section] = await ocr_sections(cropped_section_image, section, configs_with_engine_loaded_models)
-                    except Exception as e:
-                        result_plate[section] = {
-                            "error": f"Error during OCR: {str(e)}",
-                            "stacktrace": traceback.format_exc(),
-                        }
-                results.append(result_plate)
+                    cropped = crop_image(plate_image, section_data.get("bbox", []))
+                    if isinstance(cropped, dict):  # error occurred
+                        result_plate[section] = cropped
+                        continue
+
+                    ocr_result = await ocr_sections(cropped, section, configs)
+                    result_plate[section] = ocr_result
 
             except Exception as e:
-                results.append({
-                    "error": f"Error processing plate: {str(e)}",
-                    'content': license_plates,
-                    "stacktrace": traceback.format_exc(),
-                })
+                result_plate["error"] = format_error("Unexpected error processing plate", e)
+            results.append(result_plate)
 
         return results
+
     except Exception as e:
-        return {
-            "error": f"Error in PlateVision: {str(e)}",
-            "stacktrace": traceback.format_exc(),
-        }
-
-
-async def detect_license_plates(image, configs_with_engine_loaded_models):
+        return format_error("Fatal error in PlateVision", e)
+async def detect_license_plates(image, configs):
     try:
-        detection_engine = configs_with_engine_loaded_models["detection"]["license_plate"].get("engine_instance")
-        if detection_engine:
-            return await detection_engine.detect(image)
+        engine = configs["detection"]["license_plate"].get("engine_instance")
+        if engine:
+            return await engine.detect(image)
         return []
     except Exception as e:
-        return {
-            "error": f"Error detecting license plates: {str(e)}",
-            "stacktrace": traceback.format_exc(),
-        }
+        return format_error("Failed to detect license plates", e)
 
-
-async def detect_splitting_sections(plate_image, configs_with_engine_loaded_models, flags):
+async def detect_splitting_sections(plate_image, configs, flags):
     try:
-        splitting_sections_config = configs_with_engine_loaded_models["detection"].get("splitting_sections", {})
-        detection_engine = splitting_sections_config.get("engine_instance")
-        if not detection_engine:
-            raise ValueError("Splitting sections detection engine is not loaded.")
+        engine = configs["detection"].get("splitting_sections", {}).get("engine_instance")
+        if not engine:
+            raise ValueError("Splitting section engine not loaded")
 
-        splitting_sections = await detection_engine.detect(plate_image)
+        raw_sections = await engine.detect(plate_image)
+        if not raw_sections:
+            return {}
 
         map_class_target = {
             0: "region",
@@ -92,58 +85,34 @@ async def detect_splitting_sections(plate_image, configs_with_engine_loaded_mode
             3: "number"
         }
 
-        # Filter sections based on flags
-        sections = {}
-        for section in splitting_sections:
-            target = map_class_target.get(section.get("class_id"))
-            if not target:
-                continue
-            if not flags.get(target, False):
-                continue
-            sections[target] = section
-
-        return sections
-    except Exception as e:
         return {
-            "error": f"Error detecting splitting sections: {str(e)}",
-            "stacktrace": traceback.format_exc(),
+            map_class_target[s.get("class_id")]: s
+            for s in raw_sections
+            if map_class_target.get(s.get("class_id")) in flags and flags[map_class_target[s["class_id"]]]
         }
 
+    except Exception as e:
+        return format_error("Failed to detect splitting sections", e)
 
-async def ocr_sections(plate_image, section, configs_with_engine_loaded_models):
+async def ocr_sections(image, section, configs):
     try:
-        ocr_engine = configs_with_engine_loaded_models["ocr"].get(section, {}).get("engine_instance")
-        if ocr_engine:
-            return await ocr_engine.recognize_text(plate_image)
-        return ""
+        engine = configs["ocr"].get(section, {}).get("engine_instance")
+        if engine:
+            return await engine.recognize_text(image)
+        raise ValueError(f"OCR engine for section '{section}' is not available")
     except Exception as e:
-        return {
-            "error": f"Error during OCR for section '{section}': {str(e)}",
-            "stacktrace": traceback.format_exc(),
-        }
+        return format_error(f"OCR failed for section '{section}'", e)
 
-
-async def load_models(classifying_model, detection_config, ocr_config):
+async def load_models(class_model, detect_config, ocr_config):
     try:
-        return await load_all_models(
-            classifying_model,
-            detection_config,
-            ocr_config,
-        )
+        return await load_all_models(class_model, detect_config, ocr_config)
     except Exception as e:
-        return {
-            "error": f"Error loading models: {str(e)}",
-            "stacktrace": traceback.format_exc(),
-        }
+        return format_error("Model loading failed", e)
 
-
-def crop_image(image, coordinates):
+def crop_image(image, bbox):
     try:
-        if len(coordinates) == 4:
-            return image[coordinates[1]:coordinates[3], coordinates[0]:coordinates[2]]
-        raise ValueError(f"Invalid coordinates for cropping: {coordinates}")
+        if len(bbox) != 4:
+            raise ValueError("Invalid bbox format")
+        return image[bbox[1]:bbox[3], bbox[0]:bbox[2]]
     except Exception as e:
-        return {
-            "error": f"Error cropping image: {str(e)}",
-            "stacktrace": traceback.format_exc(),
-        }
+        return format_error("Cropping image failed", e)
