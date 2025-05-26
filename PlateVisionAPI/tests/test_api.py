@@ -25,21 +25,24 @@ async def test_process_image():
     retries = 5
     for attempt in range(retries):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(50.0)) as client:  # Set timeout to 50 seconds
+            print(f"Attempt {attempt + 1}: Sending request to {API_URL}")
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:  # Increased timeout to 120 seconds
                 start_time = time.time()
-                async with httpx.AsyncClient(verify=False) as client:
-                    response = await client.post(
-                        API_URL,
-                        json=json_payload,
-                        params={"measure": "true", "return_image_annotation": "false"},
-                    )
+                response = await client.post(
+                    API_URL,
+                    json=json_payload,
+                    params={"measure": "true", "return_image_annotation": "false"},
+                    headers={"Authorization": f"Bearer {API_KEY}"}
+                )
                 elapsed_time = time.time() - start_time
+
+                print(f"Response received in {elapsed_time:.2f} seconds")
                 assert response.status_code == 200, f"Unexpected status code: {response.status_code}...{response}"
-                print(f"Test passed. Response: {response.json()}, Time taken: {elapsed_time:.2f} seconds")
+                print(f"Test passed. Response: {response.json()}")
                 return
-        except httpx.ConnectTimeout:
-            print(f"Request timeout during attempt {attempt + 1}. Retrying...")
-            await asyncio.sleep(5)  # Increase sleep time between retries
+        except httpx.ReadTimeout:
+            print(f"Request timed out during attempt {attempt + 1}. Retrying...")
+            await asyncio.sleep(5)  # Wait before retrying
         except httpx.ConnectError:
             print(f"Connection attempt {attempt + 1} failed. Retrying...")
             await asyncio.sleep(2)

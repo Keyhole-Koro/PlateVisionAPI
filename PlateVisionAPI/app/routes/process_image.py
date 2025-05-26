@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Query, Request, Header
+from fastapi import APIRouter, File, UploadFile, Query, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -37,9 +37,12 @@ async def process_image(
     return_image_annotation: bool = Query(True, description="Return annotated image"),
     return_classification: bool = Query(True, description="Include classification in result"),
     return_number: bool = Query(True, description="Include number in result"),
-    api_key: str = Header(None, description="API key for authentication")  # Get API key from headers
+    authorization: str = Header(None, description="API key for authentication")  # Get API key from headers
 ):
     try:
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid auth header")
+        api_key = authorization.split(" ")[1]
         # Validate API key
         #if api_key not in VALID_API_KEYS:
         #    return JSONResponse(content={"error": "Invalid API key"}, status_code=401)
@@ -61,7 +64,8 @@ async def process_image(
                 return JSONResponse(content={
                     "error": f"No image data provided{type(file)}, {data.get('base64_data')}"
                 }, status_code=400)
-
+            
+        print("File content length:", len(file_content))
         # (rest of processing logic continues as before)
 
         try:
@@ -119,6 +123,8 @@ async def process_image(
             "region": None
         }
 
+        print("Loaded models...")
+
         platevision_results = await PlateVision(
             image,
             classifying_model_config,
@@ -126,7 +132,7 @@ async def process_image(
             ocr_config,
             flags,
         )
-
+        print("PlateVision processing completed...")
         if return_image_annotation:
             for plate_result in platevision_results:
                 annotated_image = create_annotated_image(image, plate_result)

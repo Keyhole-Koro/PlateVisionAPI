@@ -29,6 +29,7 @@ async def PlateVision(
         for plate in license_plates:
             try:
                 result_plate = {}
+                print(f"plate: {plate}")
                 # Crop the license plate image
                 plate_image = crop_image(image, plate.get("bbox", []))
                 # Detect sections within the license plate
